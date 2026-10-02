@@ -1,0 +1,69 @@
+# Operating systems and editors
+.DS_Store
+Thumbs.db
+Desktop.ini
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# DeepSeek Harness / local recovery artifacts
+.acl-recovery/
+
+# Local scratch files that are not project issue records
+*.tmp
+*.temp
+*.bak
+*.orig
+
+# Go build and test outputs
+/bin/
+/dist/
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+coverage/
+coverage.*
+
+# JavaScript dependencies and tool caches
+node_modules/
+.npm/
+.pnpm-store/
+.yarn/
+.cache/
+
+# Runtime state and generated archives
+/data/
+/data-dev/
+/data-*/
+/sessions.json
+/catalog.json
+
+# Deployment secrets and TLS private material
+/secrets/
+/certs/
+*.key
+*.pem
+*.p12
+*.pfx
+
+# Local configuration overrides (examples remain tracked)
+/server.json
+/config.json
+*.local.json
+.env
+.env.*
+!.env.example
+
+# Logs and process artifacts
+*.log
+*.pid
+*.pid.lock
+
+# Legacy local prototype, superseded by internal/server cookie sessions
+/auth1.go
