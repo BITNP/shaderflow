@@ -32,7 +32,7 @@ go run ./cmd/shaderflow -config server.dev.example.json
 
 ## oauth2-proxy
 
-应用不处理 OIDC 协议。请把 oauth2-proxy 作为唯一公网入口，并让它把认证用户透传到上游：
+应用不处理 OIDC 协议。生产部署使用仓库根目录的 `docker-compose.yml` 启动 oauth2-proxy；它是应用的唯一入口，并将认证用户透传到上游。OAuth2 Proxy 需要启用：
 
 ```text
 --pass-user-headers=true
@@ -40,16 +40,24 @@ go run ./cmd/shaderflow -config server.dev.example.json
 
 ShaderFlow 从 oauth2-proxy 请求头 `X-Forwarded-User` 获取玩家身份。常见的反向代理配置还会使用 oauth2-proxy 的 `--set-xauthrequest`，但本应用读取的是传给上游的 `X-Forwarded-User`，不是浏览器可伪造的请求头。
 
-**必须**将 `trustedProxyCIDRs` 设置为 oauth2-proxy 到 ShaderFlow 的实际源地址范围，并让 ShaderFlow 只监听私网或回环地址。服务端仅在远端地址落入该列表时才信任 `X-Forwarded-User`；不要将应用端口直接暴露到公网。
+### Docker + OIDC 生产部署
 
-生产时由反向代理终止 HTTPS，请将 `cookieSecure` 设为 `true`。浏览器的 WebGPU 和 WebSocket 均应通过 HTTPS/WSS 访问代理。
+根目录的 `docker-compose.yml` 运行应用和 [oauth2-proxy](https://oauth2-proxy.github.io/oauth2-proxy/)。应用没有宿主机端口；oauth2-proxy 仅绑定到 `127.0.0.1:4180`，应由另一个 HTTPS 反向代理转发。将反向代理的公网 HTTPS 地址加上 `/oauth2/callback` 配置为 OIDC 客户端的回调地址。
+
+在启动前于 `conf/` 创建受限权限的 `server.docker.json` 和 `oauth2-proxy.cfg`。前者应设置生产管理员密码、`cookieSecure: true` 和 `trustedProxyCIDRs: ["172.30.0.2/32"]`；后者是 oauth2-proxy 的原生配置文件，应配置 OIDC provider、issuer、client、cookie secret、redirect URL、`http_address = "0.0.0.0:4180"`、上游 `http://app:8080/`、`pass_user_headers = true`、`reverse_proxy = true` 与 `cookie_secure = true`。两份配置文件均被 Git 忽略。
+
+```sh
+docker compose up --build -d
+```
+
+不要放宽应用的 `trustedProxyCIDRs`，也不要为 `app` 添加 `ports`。生产配置中的 `cookieSecure` 必须保持 `true`，并且外部反向代理必须使用 HTTPS。
 
 ### 多用户本机开发（Caddy）
 
-仓库包含 `docker-compose.yml`、`conf/Caddyfile`、`conf/server.docker.dev.json` 以及运行数据目录 `data/`，用于模拟九个 oauth2-proxy 已认证用户。`conf/` 以只读 bind mount 提供给应用和 Caddy，`data/` 以可写 bind mount 持久化管理员 Session。Caddy 将 `user1.localhost` 到 `user9.localhost` 的请求分别代理到同一个应用容器，并添加对应的 `X-Forwarded-User` 请求头；`admin.localhost` 不注入玩家身份，只用于管理员登录。
+仓库包含 `docker-compose.dev.yml`、`conf/Caddyfile`、`conf/server.docker.dev.json` 以及运行数据目录 `data/`，用于模拟九个 oauth2-proxy 已认证用户。`conf/` 以只读 bind mount 提供给应用和 Caddy，`data/` 以可写 bind mount 持久化管理员 Session。Caddy 将 `user1.localhost` 到 `user9.localhost` 的请求分别代理到同一个应用容器，并添加对应的 `X-Forwarded-User` 请求头；`admin.localhost` 不注入玩家身份，只用于管理员登录。此配置仅用于本机开发，不提供 OIDC 或生产级认证。
 
 ```sh
-docker compose up --build
+docker compose -f docker-compose.dev.yml up --build
 ```
 
 然后使用不同的普通/无痕浏览器窗口访问：
@@ -62,7 +70,7 @@ docker compose up --build
 
 管理控制台和大屏已拆分：`/admin/` 会重定向到 `/admin/console/`；大屏位于 `/admin/view/`。大屏在普通窗口和浏览器全屏模式下都会渲染；右上角低透明度控件可切换全屏或返回控制台。
 
-开发管理员密码为 `dev-admin-change-me`，定义在 `conf/server.docker.dev.json`。Caddy 暴露宿主机的 80 端口；若该端口已被占用，请修改 compose 的端口映射，并在 URL 中加上该端口。此开发配置只信任 Docker 默认私网段 `172.16.0.0/12`，不可直接用于生产。
+开发管理员密码为 `dev-admin-change-me`，定义在 `conf/server.docker.dev.json`。Caddy 暴露宿主机的 8080 端口；若该端口已被占用，请修改 `docker-compose.dev.yml` 的端口映射，并在 URL 中加上该端口。此开发配置只用于模拟可信身份，不能用于生产。
 
 
 ## API 概览

@@ -54,6 +54,8 @@ node_modules/
 
 # Local configuration overrides (examples remain tracked)
 /server.json
+/conf/server.docker.json
+/conf/oauth2-proxy.cfg
 /config.json
 *.local.json
 .env

@@ -1,0 +1,18 @@
+services:
+  app:
+    build:
+      context: .
+      args:
+        GOPROXY: https://goproxy.cn,direct
+    volumes:
+      - ./conf:/conf:ro
+      - ./data:/data
+
+  caddy:
+    image: caddy:alpine
+    depends_on:
+      - app
+    ports:
+      - "8080:80"
+    volumes:
+      - ./conf/Caddyfile:/etc/caddy/Caddyfile:ro

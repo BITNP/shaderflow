@@ -1,18 +1,38 @@
+name: shaderflow
+
 services:
   app:
     build:
       context: .
       args:
         GOPROXY: https://goproxy.cn,direct
+    entrypoint: ["./shaderflow", "-config", "/conf/server.docker.json"]
+    expose:
+      - "8080"
     volumes:
-      - ./conf:/conf:ro
+      - ./conf/server.docker.json:/conf/server.docker.json:ro
       - ./data:/data
+    networks:
+      backend: {}
 
-  caddy:
-    image: caddy:alpine
+  oauth2-proxy:
+    image: quay.io/oauth2-proxy/oauth2-proxy:v7.7.1
     depends_on:
       - app
-    ports:
-      - "8080:80"
+    command: ["--config=/etc/oauth2-proxy/oauth2-proxy.cfg"]
     volumes:
-      - ./conf/Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./conf/oauth2-proxy.cfg:/etc/oauth2-proxy/oauth2-proxy.cfg:ro
+    ports:
+      - "127.0.0.1:4180:4180"
+    networks:
+      edge: {}
+      backend:
+        ipv4_address: 172.30.0.2
+
+networks:
+  edge: {}
+  backend:
+    internal: true
+    ipam:
+      config:
+        - subnet: 172.30.0.0/24
