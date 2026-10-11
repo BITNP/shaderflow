@@ -19,7 +19,7 @@ function connect() {
   model.socketStop = startSocket(async message => {
     if (message.state) await acceptState(message.state);
     else await refreshState();
-  }, status => { $('#status').textContent = status; });
+  }, (status,tone) => { const node=$('#status');node.className='hint';node.textContent=status;node.dataset.tone=tone;node.style.color=tone==='success'?'#a3be8c':tone==='error'?'#bf616a':'#ebcb8b'; });
 }
 async function refreshState() { await acceptState(await request('/api/state')); }
 
@@ -35,7 +35,7 @@ async function acceptState(state) {
 async function ensureRenderer() {
   if (model.renderer) return model.renderer;
   try { model.renderer = await new WallRenderer().init(); $('#status').textContent = 'WebGPU 大屏已就绪'; return model.renderer; }
-  catch (error) { $('#status').textContent = `WebGPU 不可用：${errorText(error)}`; $('#status').className='bad'; throw error; }
+  catch (error) { const node=$('#status');node.textContent = `WebGPU 不可用：${errorText(error)}`; node.className='bad';delete node.dataset.tone;node.style.color=''; throw error; }
 }
 function renderWall() {
   const inner = $('#wallInner');
@@ -94,7 +94,7 @@ async function draw() {
       }
       model.renderer.draw(id,frame);
     }
-  } catch (error) { $('#status').textContent=`渲染错误：${errorText(error)}`;$('#status').className='bad'; }
+  } catch (error) { const node=$('#status');node.textContent=`渲染错误：${errorText(error)}`;node.className='bad';delete node.dataset.tone;node.style.color=''; }
   finally { model.drawing=false; }
 }
 

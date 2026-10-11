@@ -20,7 +20,7 @@ async function setupRenderer() {
   try { renderer=await new WallRenderer().init();renderer.setTarget('local',preview,Math.min(640,Math.max(200,state?.ownTile?.size||480)));const result=await renderer.setShader('local',$('#editor').value||DEFAULT_EDITABLE);if(!result.ok)throw new Error(result.errors.join('\n')); }
   catch(error) { $('#errors').textContent=`WebGPU 初始化失败：${errorText(error)}`;renderer=null; }
 }
-function connect() { if(socketStop)return;socketStop=startSocket(async message=>{if(message.state)await applyState(message.state);else await refresh();},status=>{$('#socket').textContent=status;}); }
+function connect() { if(socketStop)return;socketStop=startSocket(async message=>{if(message.state)await applyState(message.state);else await refresh();},(status,tone)=>{const node=$('#socket');node.textContent=status;node.dataset.tone=tone;node.style.color=tone==='success'?'#a3be8c':tone==='error'?'#bf616a':'#ebcb8b';}); }
 async function boot() {
   try { const me=await api('/api/auth/me');if(me.role!=='player')throw new Error('管理员账号不能作为玩家提交代码');$('#identity').textContent=`${me.name}（由 oauth2-proxy 提供身份）`;await refresh();connect(); }
   catch(error) { $('#identity').textContent='未收到可信的 oauth2-proxy 身份 Header';$('#status').textContent='无法进入玩家端';$('#errors').textContent=errorText(error); }

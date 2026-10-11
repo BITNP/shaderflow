@@ -1,4 +1,4 @@
-FROM golang:1.23-alpine AS build
+FROM golang:alpine AS build
 
 ARG GOPROXY=https://goproxy.cn,direct
 ENV GOPROXY=${GOPROXY}
@@ -10,7 +10,7 @@ RUN go mod download
 COPY . ./
 RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/shaderflow ./cmd/shaderflow
 
-FROM alpine:3.21
+FROM alpine
 WORKDIR /app
 COPY --from=build /out/shaderflow ./shaderflow
 COPY web ./web
