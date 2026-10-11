@@ -46,7 +46,7 @@ ShaderFlow 从 oauth2-proxy 请求头 `X-Forwarded-User` 获取玩家身份。�
 
 ### 多用户本机开发（Caddy）
 
-仓库包含 `docker-compose.yml`、`conf/Caddyfile`、`conf/server.docker.dev.json` 以及运行数据目录 `data/`，用于模拟两个 oauth2-proxy 已认证用户。`conf/` 以只读 bind mount 提供给应用和 Caddy，`data/` 以可写 bind mount 持久化管理员 Session。Caddy 将 `user1.localhost` 和 `user2.localhost` 的请求分别代理到同一个应用容器，并添加不同的 `X-Forwarded-User` 请求头。
+仓库包含 `docker-compose.yml`、`conf/Caddyfile`、`conf/server.docker.dev.json` 以及运行数据目录 `data/`，用于模拟九个 oauth2-proxy 已认证用户。`conf/` 以只读 bind mount 提供给应用和 Caddy，`data/` 以可写 bind mount 持久化管理员 Session。Caddy 将 `user1.localhost` 到 `user9.localhost` 的请求分别代理到同一个应用容器，并添加对应的 `X-Forwarded-User` 请求头；`admin.localhost` 不注入玩家身份，只用于管理员登录。
 
 ```sh
 docker compose up --build
@@ -54,9 +54,13 @@ docker compose up --build
 
 然后使用不同的普通/无痕浏览器窗口访问：
 
+- `http://admin.localhost/admin/console/`：管理控制台
+- `http://admin.localhost/admin/view/`：大屏（登录后需要点击“进入全屏大屏”）
 - `http://user1.localhost/player/`
 - `http://user2.localhost/player/`
-- `http://user1.localhost/admin/`（或任一上述域名的 `/admin/`）
+- `http://user9.localhost/player/`
+
+管理控制台和大屏已拆分：`/admin/` 会重定向到 `/admin/console/`；大屏位于 `/admin/view/`。浏览器不允许页面在没有用户手势时自行进入全屏，因此大屏页会遮挡画面，直到管理员点击“进入全屏大屏”。若退出浏览器全屏，遮挡层会再次出现。
 
 开发管理员密码为 `dev-admin-change-me`，定义在 `conf/server.docker.dev.json`。Caddy 暴露宿主机的 80 端口；若该端口已被占用，请修改 compose 的端口映射，并在 URL 中加上该端口。此开发配置只信任 Docker 默认私网段 `172.16.0.0/12`，不可直接用于生产。
 

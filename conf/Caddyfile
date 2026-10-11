@@ -3,6 +3,10 @@
   auto_https off
 }
 
+http://admin.localhost {
+  reverse_proxy app:8080
+}
+
 http://user1.localhost {
   reverse_proxy app:8080 {
     header_up X-Forwarded-User user1
@@ -12,5 +16,47 @@ http://user1.localhost {
 http://user2.localhost {
   reverse_proxy app:8080 {
     header_up X-Forwarded-User user2
+  }
+}
+
+http://user3.localhost {
+  reverse_proxy app:8080 {
+    header_up X-Forwarded-User user3
+  }
+}
+
+http://user4.localhost {
+  reverse_proxy app:8080 {
+    header_up X-Forwarded-User user4
+  }
+}
+
+http://user5.localhost {
+  reverse_proxy app:8080 {
+    header_up X-Forwarded-User user5
+  }
+}
+
+http://user6.localhost {
+  reverse_proxy app:8080 {
+    header_up X-Forwarded-User user6
+  }
+}
+
+http://user7.localhost {
+  reverse_proxy app:8080 {
+    header_up X-Forwarded-User user7
+  }
+}
+
+http://user8.localhost {
+  reverse_proxy app:8080 {
+    header_up X-Forwarded-User user8
+  }
+}
+
+http://user9.localhost {
+  reverse_proxy app:8080 {
+    header_up X-Forwarded-User user9
   }
 }

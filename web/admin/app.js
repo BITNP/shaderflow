@@ -39,8 +39,9 @@ async function ensureRenderer() {
   catch (error) { $('#status').textContent = `WebGPU 不可用：${errorText(error)}`; $('#status').className='bad'; throw error; }
 }
 function renderWall() {
-  const {settings, players=[]} = model.state;
   const inner = $('#wallInner');
+  if (!inner) return;
+  const {settings, players=[]} = model.state;
   inner.style.aspectRatio = `${settings.width} / ${settings.height}`;
   const alive = new Set(players.map(player => player.sub));
   for (const [sub, canvas] of model.canvases) if (!alive.has(sub)) { canvas.remove(); model.canvases.delete(sub); model.sources.delete(sub); }

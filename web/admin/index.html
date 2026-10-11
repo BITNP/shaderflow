@@ -1,15 +1,2 @@
 <!doctype html>
-<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="dark"><title>ShaderFlow · 管理大屏</title><link rel="stylesheet" href="../style.css"><link rel="stylesheet" href="./admin.css"></head>
-<body>
-<div id="notices" aria-live="polite"></div>
-<section id="login" class="login"><form id="loginForm" class="login-card"><h1>ShaderFlow 管理端</h1><p class="hint">本浏览器负责验证候选 shader 并渲染大屏。</p><input id="password" type="password" autocomplete="current-password" placeholder="管理员密码" required><button type="submit">登录</button><p id="loginError" class="bad"></p></form></section>
-<div id="app" class="hidden">
-<header><div><h1>ShaderFlow · Shader Wall</h1><span id="status" class="hint">连接中</span></div><div class="row"><button id="logout">退出管理员</button></div></header>
-<main>
-<section class="panel"><div class="row"><h2>屏幕</h2><label>宽 <input id="width" type="number" min="200" max="16384"></label><label>高 <input id="height" type="number" min="200" max="16384"></label><button id="saveSettings">更新排布</button><span id="layoutInfo" class="hint"></span></div></section>
-<section class="panel"><h2>现场画面</h2><p class="hint">只显示已由本大屏完成 WebGPU 验证并确认的在线玩家。断线 30 秒后移除；空位超过四分之一时重新排布。</p><div id="wall" class="wall"><div id="wallInner" class="wall-inner"></div></div></section>
-<section class="panel"><h2>候选代码</h2><p class="hint">玩家提交的代码先在这里以锁定模板编译并实际绘制；成功后才提升为现场代码。</p><div id="candidates" class="candidate-list"></div></section>
-<section class="panel"><h2>在线玩家</h2><div id="players" class="player-list"></div></section>
-</main></div>
-<script type="module" src="./app.js"></script>
-</body></html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta http-equiv="refresh" content="0; url=/admin/console/"><title>ShaderFlow 管理端</title><script>location.replace('/admin/console/');</script></head><body><a href="/admin/console/">进入管理控制台</a></body></html>

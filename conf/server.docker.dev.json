@@ -3,6 +3,6 @@
   "dataDir": "/data",
   "staticDir": "web",
   "adminPassword": "dev-admin-change-me",
-  "trustedProxyCIDRs": ["172.16.0.0/12"],
+  "trustedProxyCIDRs": ["0.0.0.0/0"],
   "cookieSecure": false
 }

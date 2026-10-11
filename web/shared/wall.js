@@ -1,10 +1,11 @@
-export const DEFAULT_EDITABLE = `// 预定义好的颜色，用户可编辑
-const positiveColor = vec3f(255.,254.,244.)/256;
-const negativeColor = vec3f(255.,160.,85.)/256.;
+export const DEFAULT_EDITABLE = `// 正值和负值的颜色（可编辑，范围建议为 0.0～1.0）
+const positiveColor = vec3f(255., 254., 244.) / 256.;
+const negativeColor = vec3f(255., 160., 85.) / 256.;
 
-// 用户函数，其中 x y 为 0~1
+// 最简单的双色渐变：x 从左到右映射为 -1.0～1.0。
+// 修改这一行即可开始创作。
 fn userfn(x: f32, y: f32, t: f32) -> f32 {
-  return sin(t + x * 6.283185 + y * 3.141593);
+  return 2.0 * x - 1.0;
 }
 `;
 
