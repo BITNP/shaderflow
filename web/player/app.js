@@ -1,4 +1,5 @@
 import { DEFAULT_EDITABLE, WallRenderer } from '../shared/wall.js';
+import { playUploadGenie } from './upload-genie.js';
 import { $, api, json, announce, errorText, startSocket } from '../ui.js';
 
 let state=null, renderer=null, socketStop=null, version=0, source=DEFAULT_EDITABLE, rendering=false;
@@ -29,7 +30,7 @@ async function boot() {
 async function draw() { requestAnimationFrame(draw);if(rendering||!renderer)return;rendering=true;try{renderer.draw('local',Math.floor(performance.now()/10));}catch{}finally{rendering=false;} }
 $('#submit').onclick=async()=>{
   const editable=$('#editor').value;$('#errors').textContent='';$('#submit').disabled=true;
-  try { await setupRenderer();if(!renderer)throw new Error('WebGPU 不可用');const checked=await renderer.setShader('local',editable);if(!checked.ok)throw new Error(checked.errors.join('\n'));renderer.draw('local',Math.floor(performance.now()/10));await renderer.device.queue.onSubmittedWorkDone();const next=Math.max(version+1,Date.now());const response=await api('/api/candidate',{method:'POST',body:json({version:next,source:editable})});source=editable;version=next;$('#editor').value=source;await applyState(response);announce('候选代码已提交，等待管理大屏验证','success');}
+  try { await setupRenderer();if(!renderer)throw new Error('WebGPU 不可用');const checked=await renderer.setShader('local',editable);if(!checked.ok)throw new Error(checked.errors.join('\n'));renderer.draw('local',Math.floor(performance.now()/10));await renderer.device.queue.onSubmittedWorkDone();playUploadGenie(preview,$('#submit'));const next=Math.max(version+1,Date.now());const response=await api('/api/candidate',{method:'POST',body:json({version:next,source:editable})});source=editable;version=next;$('#editor').value=source;await applyState(response);announce('候选代码已提交，等待管理大屏验证','success');}
   catch(error){$('#errors').textContent=errorText(error);announce('本地验证失败','error');}
   finally{$('#submit').disabled=false;}
 };

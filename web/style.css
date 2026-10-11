@@ -80,6 +80,24 @@ button:hover:not(:disabled), .button:hover {
 button:active:not(:disabled), .button:active { transform: translateY(0); }
 button:disabled { cursor: not-allowed; opacity: .5; }
 
+.upload-genie-target {
+  animation: upload-genie-target .78s ease-out;
+}
+
+.upload-genie-overlay {
+  position: fixed;
+  z-index: 30;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  pointer-events: none;
+}
+
+@keyframes upload-genie-target {
+  0%, 100% { filter: brightness(1); }
+  72% { filter: brightness(1.35); }
+}
+
 button.secondary, .button.secondary {
   color: var(--snow1);
   background: var(--nord0);
