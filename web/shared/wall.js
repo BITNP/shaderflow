@@ -92,54 +92,42 @@ fn userfn(x: f32, y: f32, t: f32) -> f32 {${body}}
 function compilationErrors(info) { return info.messages.filter(message => message.type === 'error').map(message => `${message.lineNum}:${message.linePos} ${message.message}`); }
 
 export class WallRenderer {
-  constructor() { this.device = null; this.format = null; this.pipelines = new Map(); this.targets = new Map(); this.uniform = null; this.bindGroups = new Map(); }
+  constructor({onGpuTiming}={}) { this.device=null;this.format=null;this.pipelines=new Map();this.targets=new Map();this.uniform=null;this.bindGroups=new Map();this.onGpuTiming=onGpuTiming||null;this.gpuTimingSupported=false;this.timestampPeriod=0;this.timingRings=new Map(); }
   async init() {
     if (!navigator.gpu) throw new Error('浏览器不支持 WebGPU；请使用 HTTPS 和支持 WebGPU 的浏览器');
-    const adapter = await navigator.gpu.requestAdapter();
-    if (!adapter) throw new Error('没有可用的 WebGPU 适配器');
-    this.device = await adapter.requestDevice();
-    this.format = navigator.gpu.getPreferredCanvasFormat();
-    this.uniform = this.device.createBuffer({size:16, usage:GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST});
+    const adapter=await navigator.gpu.requestAdapter();if (!adapter) throw new Error('没有可用的 WebGPU 适配器');
+    const wantsTimestamps=adapter.features?.has?.('timestamp-query');
+    try { this.device=await adapter.requestDevice(wantsTimestamps?{requiredFeatures:['timestamp-query']}:{}); }
+    catch (error) { if (!wantsTimestamps) throw error;this.device=await adapter.requestDevice(); }
+    this.format=navigator.gpu.getPreferredCanvasFormat();
+    this.uniform=this.device.createBuffer({size:16,usage:GPUBufferUsage.UNIFORM|GPUBufferUsage.COPY_DST});
+    if (this.onGpuTiming && this.device.features?.has?.('timestamp-query') && typeof this.device.queue.getTimestampPeriod==='function') {
+      const period=this.device.queue.getTimestampPeriod();
+      if (Number.isFinite(period) && period>0) { this.timestampPeriod=period;this.gpuTimingSupported=true; }
+    }
     return this;
   }
   assertReady() { if (!this.device) throw new Error('渲染器尚未初始化'); }
   async compile(editable) {
-    this.assertReady();
-    const source = buildShaderSource(editable);
-    const module = this.device.createShaderModule({code:source});
-    const errors = compilationErrors(await module.getCompilationInfo());
-    if (errors.length) return {ok:false, errors};
-    try {
-      this.device.pushErrorScope('validation');
-      const pipeline = await this.device.createRenderPipelineAsync({layout:'auto', vertex:{module,entryPoint:'vs'}, fragment:{module,entryPoint:'fs',targets:[{format:this.format}]}, primitive:{topology:'triangle-list'}});
-      const error = await this.device.popErrorScope();
-      if (error) return {ok:false,errors:[error.message]};
-      return {ok:true,pipeline,source,errors:[]};
-    } catch (error) {
-      await this.device.popErrorScope().catch(() => {});
-      return {ok:false,errors:[String(error?.message || error)]};
-    }
+    this.assertReady();const source=buildShaderSource(editable);const module=this.device.createShaderModule({code:source});const errors=compilationErrors(await module.getCompilationInfo());if(errors.length)return {ok:false,errors};
+    try { this.device.pushErrorScope('validation');const pipeline=await this.device.createRenderPipelineAsync({layout:'auto',vertex:{module,entryPoint:'vs'},fragment:{module,entryPoint:'fs',targets:[{format:this.format}]},primitive:{topology:'triangle-list'}});const error=await this.device.popErrorScope();if(error)return {ok:false,errors:[error.message]};return {ok:true,pipeline,source,errors:[]}; }
+    catch(error) { await this.device.popErrorScope().catch(()=>{});return {ok:false,errors:[String(error?.message||error)]}; }
   }
-  async setShader(id, editable) { const result = await this.compile(editable); if (result.ok) { this.pipelines.set(id,result.pipeline); this.bindGroups.delete(id); } return result; }
-  setTarget(id, canvas, size) {
-    this.assertReady();
-    const side = Math.max(1, Math.floor(size));
-    canvas.width = side; canvas.height = side;
-    const context = canvas.getContext('webgpu');
-    if (!context) throw new Error('无法创建 WebGPU Canvas 上下文');
-    context.configure({device:this.device,format:this.format,alphaMode:'opaque'});
-    this.targets.set(id,{canvas,context});
+  async setShader(id,editable) { const result=await this.compile(editable);if(result.ok){this.pipelines.set(id,result.pipeline);this.bindGroups.delete(id);}return result; }
+  setTarget(id,canvas,size) { this.assertReady();const side=Math.max(1,Math.floor(size));canvas.width=side;canvas.height=side;const context=canvas.getContext('webgpu');if(!context)throw new Error('无法创建 WebGPU Canvas 上下文');context.configure({device:this.device,format:this.format,alphaMode:'opaque'});this.targets.set(id,{canvas,context}); }
+  nextTimingSlot(id) {
+    if (!this.gpuTimingSupported) return null;
+    let ring=this.timingRings.get(id);
+    if (!ring) { ring={next:0,slots:Array.from({length:3},()=>({query:this.device.createQuerySet({type:'timestamp',count:2}),resolve:this.device.createBuffer({size:16,usage:GPUBufferUsage.QUERY_RESOLVE|GPUBufferUsage.COPY_SRC}),read:this.device.createBuffer({size:16,usage:GPUBufferUsage.COPY_DST|GPUBufferUsage.MAP_READ}),pending:false}))};this.timingRings.set(id,ring); }
+    for(let attempt=0;attempt<ring.slots.length;attempt++){const slot=ring.slots[ring.next];ring.next=(ring.next+1)%ring.slots.length;if(!slot.pending){slot.pending=true;return slot;}}
+    return null;
   }
-  draw(id, frame) {
-    this.assertReady();
-    const pipeline = this.pipelines.get(id), target = this.targets.get(id);
-    if (!pipeline || !target) throw new Error('shader 或画布尚未准备好');
-    let bindGroup = this.bindGroups.get(id);
-    if (!bindGroup) { bindGroup = this.device.createBindGroup({layout:pipeline.getBindGroupLayout(0),entries:[{binding:0,resource:{buffer:this.uniform}}]});this.bindGroups.set(id,bindGroup); }
-    this.device.queue.writeBuffer(this.uniform,0,new Uint32Array([frame >>> 0]));
-    const encoder=this.device.createCommandEncoder();
-    const pass=encoder.beginRenderPass({colorAttachments:[{view:target.context.getCurrentTexture().createView(),clearValue:{r:0,g:0,b:0,a:1},loadOp:'clear',storeOp:'store'}]});
-    pass.setPipeline(pipeline);pass.setBindGroup(0,bindGroup);pass.draw(3);pass.end();this.device.queue.submit([encoder.finish()]);
+  readTiming(id,slot) {
+    slot.read.mapAsync(GPUMapMode.READ).then(()=>{const raw=new BigUint64Array(slot.read.getMappedRange().slice(0));slot.read.unmap();slot.pending=false;const milliseconds=Number(raw[1]-raw[0])*this.timestampPeriod/1e6;if(Number.isFinite(milliseconds)&&milliseconds>=0)this.onGpuTiming?.(id,milliseconds);}).catch(()=>{slot.pending=false;});
   }
-  destroy() { this.uniform?.destroy();this.pipelines.clear();this.targets.clear();this.bindGroups.clear(); }
+  draw(id,frame) {
+    this.assertReady();const pipeline=this.pipelines.get(id),target=this.targets.get(id);if(!pipeline||!target)throw new Error('shader 或画布尚未准备好');let bindGroup=this.bindGroups.get(id);if(!bindGroup){bindGroup=this.device.createBindGroup({layout:pipeline.getBindGroupLayout(0),entries:[{binding:0,resource:{buffer:this.uniform}}]});this.bindGroups.set(id,bindGroup);}
+    this.device.queue.writeBuffer(this.uniform,0,new Uint32Array([frame>>>0]));const encoder=this.device.createCommandEncoder(),timing=this.nextTimingSlot(id);if(timing)encoder.writeTimestamp(timing.query,0);const pass=encoder.beginRenderPass({colorAttachments:[{view:target.context.getCurrentTexture().createView(),clearValue:{r:0,g:0,b:0,a:1},loadOp:'clear',storeOp:'store'}]});pass.setPipeline(pipeline);pass.setBindGroup(0,bindGroup);pass.draw(3);pass.end();if(timing){encoder.writeTimestamp(timing.query,1);encoder.resolveQuerySet(timing.query,0,2,timing.resolve,0);encoder.copyBufferToBuffer(timing.resolve,0,timing.read,0,16);}this.device.queue.submit([encoder.finish()]);if(timing)this.readTiming(id,timing);
+  }
+  destroy() { this.uniform?.destroy();for(const ring of this.timingRings.values())for(const slot of ring.slots){slot.query.destroy?.();slot.resolve.destroy();slot.read.destroy();}this.timingRings.clear();this.pipelines.clear();this.targets.clear();this.bindGroups.clear(); }
 }

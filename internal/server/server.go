@@ -250,13 +250,16 @@ func (s *Server) routes() {
 		}
 		reply(w, s.Game.Snapshot(sub, false))
 	}))
-	s.mux.HandleFunc("PUT /api/admin/settings", s.require("admin", func(w http.ResponseWriter, r *http.Request, _, _ string) {
-		var settings game.Settings
-		if err := decode(r, &settings); err != nil {
+	s.mux.HandleFunc("PUT /api/admin/viewport", s.require("admin", func(w http.ResponseWriter, r *http.Request, _, _ string) {
+		var viewport struct {
+			Width  int `json:"width"`
+			Height int `json:"height"`
+		}
+		if err := decode(r, &viewport); err != nil {
 			fail(w, 400, err)
 			return
 		}
-		if err := s.Game.UpdateSettings(settings); err != nil {
+		if err := s.Game.UpdateViewport(viewport.Width, viewport.Height); err != nil {
 			fail(w, 400, err)
 			return
 		}
@@ -275,6 +278,28 @@ func (s *Server) routes() {
 			return
 		}
 		reply(w, s.Game.Snapshot("", true))
+	}))
+	s.mux.HandleFunc("POST /api/admin/players/{sub}/kick", s.require("admin", func(w http.ResponseWriter, r *http.Request, _, _ string) {
+		if err := s.Game.Kick(r.PathValue("sub")); err != nil {
+			fail(w, http.StatusNotFound, err)
+			return
+		}
+		reply(w, s.Game.Snapshot("", true))
+	}))
+	s.mux.HandleFunc("PUT /api/admin/metrics", s.require("admin", func(w http.ResponseWriter, r *http.Request, _, _ string) {
+		var req struct {
+			Metrics []game.MetricReport `json:"metrics"`
+		}
+		if err := decode(r, &req); err != nil {
+			fail(w, 400, err)
+			return
+		}
+		if len(req.Metrics) > 64 {
+			fail(w, 400, errors.New("too many metric reports"))
+			return
+		}
+		s.Game.RecordMetrics(req.Metrics)
+		w.WriteHeader(http.StatusNoContent)
 	}))
 	s.mux.HandleFunc("GET /api/ws", s.ws)
 	if _, err := os.Stat(s.cfg.StaticDir); err == nil {

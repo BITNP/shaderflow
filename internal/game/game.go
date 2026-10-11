@@ -3,6 +3,7 @@ package game
 import (
 	"errors"
 	"fmt"
+	"math"
 	"sort"
 	"strings"
 	"sync"
@@ -51,11 +52,26 @@ type Tile struct {
 	Size   int `json:"size"`
 }
 
+type FrameMetrics struct {
+	Version   int64     `json:"version"`
+	GPUMS     *float64  `json:"gpuMs,omitempty"`
+	SubmitMS  float64   `json:"submitMs"`
+	UpdatedAt time.Time `json:"updatedAt"`
+}
+
+type MetricReport struct {
+	Sub      string   `json:"sub"`
+	Version  int64    `json:"version"`
+	GPUMS    *float64 `json:"gpuMs,omitempty"`
+	SubmitMS float64  `json:"submitMs"`
+}
+
 type Player struct {
-	Sub  string `json:"sub"`
-	Name string `json:"name"`
-	Tile Tile   `json:"tile"`
-	Code Code   `json:"code,omitempty"`
+	Sub     string        `json:"sub"`
+	Name    string        `json:"name"`
+	Tile    Tile          `json:"tile"`
+	Code    Code          `json:"code,omitempty"`
+	Metrics *FrameMetrics `json:"metrics,omitempty"`
 }
 
 type Layout struct {
@@ -95,6 +111,8 @@ type Game struct {
 	active      map[string]bool
 	connections map[string]int
 	timers      map[string]*time.Timer
+	metrics     map[string]FrameMetrics
+	kicked      map[string]int64
 	layout      Layout
 	tiles       map[string]Tile
 	seq         uint64
@@ -103,7 +121,7 @@ type Game struct {
 }
 
 func New() *Game {
-	return &Game{settings: DefaultSettings(), accepted: map[string]Candidate{}, candidates: map[string]Candidate{}, active: map[string]bool{}, connections: map[string]int{}, timers: map[string]*time.Timer{}, tiles: map[string]Tile{}, subscribers: map[chan Envelope]struct{}{}}
+	return &Game{settings: DefaultSettings(), accepted: map[string]Candidate{}, candidates: map[string]Candidate{}, active: map[string]bool{}, connections: map[string]int{}, timers: map[string]*time.Timer{}, metrics: map[string]FrameMetrics{}, kicked: map[string]int64{}, tiles: map[string]Tile{}, subscribers: map[chan Envelope]struct{}{}}
 }
 
 func (g *Game) emit(kind string, data any) {
@@ -129,7 +147,12 @@ func (g *Game) activePlayers() []Player {
 		if !g.active[sub] {
 			continue
 		}
-		items = append(items, Player{Sub: sub, Name: candidate.Name, Tile: g.tiles[sub], Code: candidate.Code})
+		player := Player{Sub: sub, Name: candidate.Name, Tile: g.tiles[sub], Code: candidate.Code}
+		if metric, ok := g.metrics[sub]; ok && metric.Version == candidate.Code.Version {
+			metricCopy := metric
+			player.Metrics = &metricCopy
+		}
+		items = append(items, player)
 	}
 	sort.Slice(items, func(i, j int) bool { return items[i].Sub < items[j].Sub })
 	return items
@@ -187,7 +210,9 @@ func (g *Game) SubmitCandidate(sub, name string, version int64, source string) e
 	if current, ok := g.accepted[sub]; ok && version <= current.Code.Version {
 		return errors.New("candidate version must exceed accepted version")
 	}
-	g.touchLocked(sub)
+	if _, kicked := g.kicked[sub]; !kicked {
+		g.touchLocked(sub)
+	}
 	candidate := Candidate{Sub: sub, Name: name, Code: Code{Version: version, Source: source, UpdatedAt: time.Now().UTC()}}
 	g.candidates[sub] = candidate
 	g.emit("candidate.submitted", candidate)
@@ -206,6 +231,12 @@ func (g *Game) Promote(sub string, version int64) error {
 	if current, ok := g.accepted[sub]; ok && version <= current.Code.Version {
 		return errors.New("stale candidate version")
 	}
+	if cutoff, kicked := g.kicked[sub]; kicked {
+		if version <= cutoff {
+			return errors.New("kicked player must submit a higher code version")
+		}
+		delete(g.kicked, sub)
+	}
 	delete(g.candidates, sub)
 	g.accepted[sub] = candidate
 	if !g.active[sub] {
@@ -218,19 +249,68 @@ func (g *Game) Promote(sub string, version int64) error {
 	g.emit("code.accepted", Player{Sub: sub, Name: candidate.Name, Tile: g.tiles[sub], Code: candidate.Code})
 	return nil
 }
-func (g *Game) UpdateSettings(next Settings) error {
-	if err := next.Validate(); err != nil {
-		return err
+
+// UpdateViewport records the current authoritative display viewport. It is
+// called by /admin/view/ on load and after viewport changes; no manual screen
+// size configuration exists in the console.
+func (g *Game) UpdateViewport(width, height int) error {
+	if width < 1 || width > 16384 || height < 1 || height > 16384 {
+		return errors.New("viewport dimensions must be between 1 and 16384")
 	}
 	g.mu.Lock()
 	defer g.mu.Unlock()
-	g.settings = next
+	if g.settings.Width == width && g.settings.Height == height {
+		return nil
+	}
+	g.settings.Width, g.settings.Height = width, height
 	g.rebuildLayoutLocked()
-	g.emit("wall.resized", next)
+	g.emit("wall.resized", map[string]int{"width": width, "height": height})
 	return nil
 }
 
+func (g *Game) Kick(sub string) error {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	accepted, ok := g.accepted[sub]
+	if !ok {
+		return errors.New("player not found")
+	}
+	g.kicked[sub] = accepted.Code.Version
+	delete(g.active, sub)
+	delete(g.tiles, sub)
+	delete(g.metrics, sub)
+	g.rebuildLayoutLocked()
+	g.emit("player.kicked", map[string]any{"sub": sub, "version": accepted.Code.Version})
+	return nil
+}
+
+// RecordMetrics accepts a throttled batch from the authoritative renderer.
+// GPU timing is optional because timestamp-query is not universally available.
+func (g *Game) RecordMetrics(reports []MetricReport) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	changed := false
+	for _, report := range reports {
+		accepted, ok := g.accepted[report.Sub]
+		if !ok || !g.active[report.Sub] || accepted.Code.Version != report.Version || report.Version < 1 || report.SubmitMS < 0 || math.IsNaN(report.SubmitMS) || math.IsInf(report.SubmitMS, 0) {
+			continue
+		}
+		if report.GPUMS != nil && (*report.GPUMS < 0 || math.IsNaN(*report.GPUMS) || math.IsInf(*report.GPUMS, 0)) {
+			continue
+		}
+		metric := FrameMetrics{Version: report.Version, GPUMS: report.GPUMS, SubmitMS: report.SubmitMS, UpdatedAt: time.Now().UTC()}
+		g.metrics[report.Sub] = metric
+		changed = true
+	}
+	if changed {
+		g.emit("player.metrics", nil)
+	}
+}
+
 func (g *Game) touchLocked(sub string) {
+	if _, kicked := g.kicked[sub]; kicked {
+		return
+	}
 	if timer := g.timers[sub]; timer != nil {
 		timer.Stop()
 		delete(g.timers, sub)

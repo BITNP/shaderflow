@@ -85,11 +85,31 @@ func TestCandidateNeedsAdminPromotion(t *testing.T) {
 	if len(after.Players) != 1 || len(after.Candidates) != 0 {
 		t.Fatalf("promotion missing: %#v", after)
 	}
+	kick := httptest.NewRequest(http.MethodPost, "https://wall.test/api/admin/players/alice/kick", nil)
+	kick.AddCookie(admin)
+	kicked := httptest.NewRecorder()
+	s.Handler().ServeHTTP(kicked, kick)
+	if kicked.Code != http.StatusOK {
+		t.Fatalf("kick=%d %s", kicked.Code, kicked.Body.String())
+	}
+	var kickedState game.State
+	if err := json.Unmarshal(kicked.Body.Bytes(), &kickedState); err != nil {
+		t.Fatal(err)
+	}
+	if len(kickedState.Players) != 0 {
+		t.Fatalf("kicked player remained visible: %#v", kickedState)
+	}
+	newCode := playerRequest(http.MethodPost, "/api/candidate", `{"version":2,"source":"fn userfn(x:f32,y:f32,t:f32)->f32{return y;}"}`)
+	newCodeResult := httptest.NewRecorder()
+	s.Handler().ServeHTTP(newCodeResult, newCode)
+	if newCodeResult.Code != http.StatusOK {
+		t.Fatalf("higher candidate=%d %s", newCodeResult.Code, newCodeResult.Body.String())
+	}
 }
 func TestAdminMutationsRejectCrossOrigin(t *testing.T) {
 	s := testServer(t)
 	cookie := adminCookie(t, s)
-	req := httptest.NewRequest(http.MethodPut, "https://wall.test/api/admin/settings", strings.NewReader(`{"width":1000,"height":800,"maxCodeBytes":100}`))
+	req := httptest.NewRequest(http.MethodPut, "https://wall.test/api/admin/viewport", strings.NewReader(`{"width":1000,"height":800}`))
 	req.AddCookie(cookie)
 	req.Header.Set("Origin", "https://evil.test")
 	w := httptest.NewRecorder()

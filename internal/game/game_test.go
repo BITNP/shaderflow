@@ -23,6 +23,57 @@ func TestCandidateRequiresPromotionBeforeItBecomesVisible(t *testing.T) {
 	}
 }
 
+func TestKickRemovesPlayerUntilHigherVersionIsPromoted(t *testing.T) {
+	g := New()
+	if err := g.SubmitCandidate("alice", "Alice", 1, "one"); err != nil {
+		t.Fatal(err)
+	}
+	if err := g.Promote("alice", 1); err != nil {
+		t.Fatal(err)
+	}
+	if err := g.Kick("alice"); err != nil {
+		t.Fatal(err)
+	}
+	if got := g.Snapshot("", true).Players; len(got) != 0 {
+		t.Fatalf("kicked player still active: %#v", got)
+	}
+	if err := g.SubmitCandidate("alice", "Alice", 1, "old"); err == nil {
+		t.Fatal("kicked player reused old version")
+	}
+	if err := g.SubmitCandidate("alice", "Alice", 2, "fixed"); err != nil {
+		t.Fatal(err)
+	}
+	if got := g.Snapshot("", true).Players; len(got) != 0 {
+		t.Fatalf("old code returned before promotion: %#v", got)
+	}
+	if err := g.Promote("alice", 2); err != nil {
+		t.Fatal(err)
+	}
+	if got := g.Snapshot("", true).Players; len(got) != 1 || got[0].Code.Version != 2 {
+		t.Fatalf("higher version did not restore player: %#v", got)
+	}
+}
+
+func TestMetricsAttachOnlyToActiveCurrentCode(t *testing.T) {
+	g := New()
+	if err := g.SubmitCandidate("alice", "Alice", 1, "one"); err != nil {
+		t.Fatal(err)
+	}
+	if err := g.Promote("alice", 1); err != nil {
+		t.Fatal(err)
+	}
+	gpu := 4.5
+	g.RecordMetrics([]MetricReport{{Sub: "alice", Version: 1, SubmitMS: 0.2, GPUMS: &gpu}})
+	player := g.Snapshot("", true).Players[0]
+	if player.Metrics == nil || player.Metrics.GPUMS == nil || *player.Metrics.GPUMS != gpu || player.Metrics.SubmitMS != 0.2 {
+		t.Fatalf("metrics missing: %#v", player)
+	}
+	g.RecordMetrics([]MetricReport{{Sub: "alice", Version: 2, SubmitMS: 99}})
+	if got := g.Snapshot("", true).Players[0].Metrics; got == nil || got.Version != 1 {
+		t.Fatalf("stale metric replaced current one: %#v", got)
+	}
+}
+
 func TestCandidateVersionMustAdvance(t *testing.T) {
 	g := New()
 	if err := g.SubmitCandidate("alice", "Alice", 3, "ok"); err != nil {
@@ -41,7 +92,7 @@ func TestCandidateVersionMustAdvance(t *testing.T) {
 
 func TestLayoutUsesLargestCenteredSquares(t *testing.T) {
 	g := New()
-	if err := g.UpdateSettings(Settings{Width: 1000, Height: 600, MaxCodeBytes: 100}); err != nil {
+	if err := g.UpdateViewport(1000, 600); err != nil {
 		t.Fatal(err)
 	}
 	for _, sub := range []string{"a", "b", "c"} {

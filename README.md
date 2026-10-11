@@ -71,7 +71,9 @@ docker compose up --build
 - `GET /api/state`：管理员得到全部玩家和候选版本；玩家只得到自己的版本和格子。
 - `POST /api/candidate`：玩家上传 `{version, source}` 候选版本。
 - `POST /api/admin/candidates/{sub}/promote`：管理大屏验证成功后确认指定版本。
-- `PUT /api/admin/settings`：更新 `{width,height,maxCodeBytes}`，并重新计算格子布局。
+- `POST /api/admin/players/{sub}/kick`：立即停止展示该玩家；只有其提交更高版本并通过自动验证后才会重新加入。
+- `PUT /api/admin/metrics`：管理大屏每秒批量上报每格的 GPU 时间（若 `timestamp-query` 可用）及 CPU 编码/提交时间。
+- `PUT /api/admin/viewport`：由 `/admin/view/` 自动提交当前浏览器视口的 `{width,height}`，并重新计算格子布局。
 - `GET /api/ws`：状态同步及在线检测。玩家断开 WebSocket 后有 30 秒宽限期。
 
 ## 架构
