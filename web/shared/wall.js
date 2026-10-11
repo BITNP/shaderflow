@@ -1,12 +1,44 @@
-export const DEFAULT_EDITABLE = `// 正值和负值的颜色（可编辑，范围建议为 0.0～1.0）
-const positiveColor = vec3f(255., 254., 244.) / 256.;
-const negativeColor = vec3f(255., 160., 85.) / 256.;
+export const DEFAULT_EDITABLE = `// 入门：x、y 是位置，范围 0.0～1.0；t 是不断增加的时间。
+// 返回值保持在 -1.0～1.0：正数、负数分别使用下面两种颜色。
+// // 后面是注释，不会执行。小数写成 1.0；每条语句以 ; 结尾。
 
-// 最简单的双色渐变：x 从左到右映射为 -1.0～1.0。
-// 修改这一行即可开始创作。
+// 颜色：vec3f(红, 绿, 蓝)，每个分量为 0.0～1.0。
+const positiveColor = vec3f(1.0, 0.99, 0.95);
+const negativeColor = vec3f(1.0, 0.63, 0.33);
+
+// 常用函数速查：
+// sin(a)、cos(a)      波动，结果 -1～1；a 用弧度，一圈约 6.28。
+// abs(a)             绝对值：abs(-0.5) = 0.5。
+// min(a, b)          取较小值；max(a, b) 取较大值。
+// clamp(a, lo, hi)    把 a 限制在 lo～hi。
+// floor(a)           向下取整：floor(2.7) = 2.0。
+// fract(a)           a - floor(a)，用于重复图案。
+// step(edge, a)      a < edge 时为 0.0，否则为 1.0。
+// smoothstep(lo, hi, a)  从 lo 到 hi 平滑过渡为 0～1，要求 lo < hi。
+// mix(a, b, k)       混合：k=0 得到 a，k=1 得到 b。
+// length(vec2f(a, b)) 求长度，可用来计算到圆心的距离。
+
 fn userfn(x: f32, y: f32, t: f32) -> f32 {
-  return 2.0 * x - 1.0;
+    // 默认：从左到右渐变。
+    return 2.0 * x - 1.0;
+
+    // 玩法：用下面任意一行替换上面的 return，每次只保留一个。
+    // 波纹：增大 20.0 会更密，增大 t 前的系数会更快。
+    // return sin(x * 20.0 + t * 2.0);
+
+    // 重复渐变：把画面分成 8 段。
+    // return fract(x * 8.0) * 2.0 - 1.0;
+
+    // 双色分区：左边负值，右边正值。
+    // return step(0.5, x) * 2.0 - 1.0;
+
+    // 圆形波纹：先用 let 保存到画面中心的距离。
+    // let d = length(vec2f(x - 0.5, y - 0.5));
+    // return cos(d * 30.0 - t * 2.0);
 }
+// 参考文献:
+// [1] https://tixy.land/
+// [2] https://www.w3.org/TR/WGSL/
 `;
 
 function skipTrivia(source, index) {

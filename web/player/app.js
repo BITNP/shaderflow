@@ -28,11 +28,27 @@ async function boot() {
   requestAnimationFrame(draw);
 }
 async function draw() { requestAnimationFrame(draw);if(rendering||!renderer)return;rendering=true;try{renderer.draw('local',Math.floor(performance.now()/10));}catch{}finally{rendering=false;} }
+async function runLocal() {
+  const editable=$('#editor').value;
+  await setupRenderer();
+  if(!renderer)throw new Error('WebGPU 不可用');
+  const checked=await renderer.setShader('local',editable);
+  if(!checked.ok)throw new Error(checked.errors.join('\n'));
+  renderer.draw('local',Math.floor(performance.now()/10));
+  await renderer.device.queue.onSubmittedWorkDone();
+  return editable;
+}
+$('#run').onclick=async()=>{
+  const button=$('#run');$('#errors').textContent='';button.disabled=true;
+  try { source=await runLocal();announce('本地预览已更新','success'); }
+  catch(error){$('#errors').textContent=errorText(error);announce('本地运行失败','error');}
+  finally{button.disabled=false;}
+};
 $('#submit').onclick=async()=>{
-  const editable=$('#editor').value;$('#errors').textContent='';$('#submit').disabled=true;
-  try { await setupRenderer();if(!renderer)throw new Error('WebGPU 不可用');const checked=await renderer.setShader('local',editable);if(!checked.ok)throw new Error(checked.errors.join('\n'));renderer.draw('local',Math.floor(performance.now()/10));await renderer.device.queue.onSubmittedWorkDone();playUploadGenie(preview,$('#submit'));const next=Math.max(version+1,Date.now());const response=await api('/api/candidate',{method:'POST',body:json({version:next,source:editable})});source=editable;version=next;$('#editor').value=source;await applyState(response);announce('候选代码已提交，等待管理大屏验证','success');}
+  const submit=$('#submit'),run=$('#run');$('#errors').textContent='';submit.disabled=true;run.disabled=true;
+  try { const editable=await runLocal();playUploadGenie(preview,submit);const next=Math.max(version+1,Date.now());const response=await api('/api/candidate',{method:'POST',body:json({version:next,source:editable})});source=editable;version=next;$('#editor').value=source;await applyState(response);announce('候选代码已提交，等待管理大屏验证','success');}
   catch(error){$('#errors').textContent=errorText(error);announce('本地验证失败','error');}
-  finally{$('#submit').disabled=false;}
+  finally{submit.disabled=false;run.disabled=false;}
 };
 $('#reset').onclick=()=>{$('#editor').value=DEFAULT_EDITABLE;source=DEFAULT_EDITABLE;$('#errors').textContent='';};
 $('#editor').addEventListener('input',()=>{source=$('#editor').value;});

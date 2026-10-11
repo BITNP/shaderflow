@@ -7,10 +7,16 @@ async function request(path, options={}) { return api(path, options); }
 
 async function refresh() {
   try {
+    const me = await request('/api/auth/me');
+    if (me.role !== 'admin') {
+      $('#app').classList.add('hidden'); $('#login').classList.remove('hidden');
+      return;
+    }
     await acceptState(await request('/api/state'));
     $('#login').classList.add('hidden'); $('#app').classList.remove('hidden');
     connect();
   } catch (error) {
+    $('#app').classList.add('hidden'); $('#login').classList.remove('hidden');
     if (!String(error.message).startsWith('401:')) announce(errorText(error), 'error');
   }
 }

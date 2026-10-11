@@ -302,6 +302,14 @@ func (s *Server) routes() {
 		w.WriteHeader(http.StatusNoContent)
 	}))
 	s.mux.HandleFunc("GET /api/ws", s.ws)
+	s.mux.HandleFunc("GET /{$}", func(w http.ResponseWriter, r *http.Request) {
+		_, _, role := s.identity(r)
+		if role == "admin" {
+			http.Redirect(w, r, "/admin/", http.StatusFound)
+			return
+		}
+		http.Redirect(w, r, "/player/", http.StatusFound)
+	})
 	if _, err := os.Stat(s.cfg.StaticDir); err == nil {
 		s.mux.Handle("/", http.FileServer(http.Dir(s.cfg.StaticDir)))
 	}

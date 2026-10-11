@@ -106,6 +106,34 @@ func TestCandidateNeedsAdminPromotion(t *testing.T) {
 		t.Fatalf("higher candidate=%d %s", newCodeResult.Code, newCodeResult.Body.String())
 	}
 }
+func TestRootRedirectsByRole(t *testing.T) {
+	s := testServer(t)
+	adminReq := httptest.NewRequest(http.MethodGet, "https://wall.test/", nil)
+	adminReq.AddCookie(adminCookie(t, s))
+	anonReq := httptest.NewRequest(http.MethodGet, "https://wall.test/", nil)
+	anonReq.RemoteAddr = "198.51.100.5:4000"
+	cases := []struct {
+		name string
+		req  *http.Request
+		want string
+	}{
+		{"player", playerRequest(http.MethodGet, "/", ""), "/player/"},
+		{"admin", adminReq, "/admin/"},
+		{"anonymous", anonReq, "/player/"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			w := httptest.NewRecorder()
+			s.Handler().ServeHTTP(w, tc.req)
+			if w.Code != http.StatusFound {
+				t.Fatalf("status=%d body=%s", w.Code, w.Body.String())
+			}
+			if loc := w.Header().Get("Location"); loc != tc.want {
+				t.Fatalf("location=%q want %q", loc, tc.want)
+			}
+		})
+	}
+}
 func TestAdminMutationsRejectCrossOrigin(t *testing.T) {
 	s := testServer(t)
 	cookie := adminCookie(t, s)

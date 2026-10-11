@@ -151,7 +151,7 @@ a:hover { color: var(--frost0); }
 .good { color: var(--aurora-green); }
 .hidden { display: none !important; }
 
-.editor { min-height: 460px; font-size: 13px; }
+.editor { min-height: 460px; font-size: 13px; white-space: pre; overflow-x: auto; }
 .player-preview {
   width: 100%;
   aspect-ratio: 1;
@@ -208,7 +208,7 @@ a:hover { color: var(--frost0); }
 #notices {
   position: fixed;
   z-index: 10;
-  top: 12px;
+  bottom: 12px;
   right: 12px;
   display: grid;
   gap: 7px;
