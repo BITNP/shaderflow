@@ -2,10 +2,10 @@
 <html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="dark"><title>ShaderFlow · 管理控制台</title><link rel="stylesheet" href="../../style.css"><link rel="stylesheet" href="../admin.css"></head>
 <body data-admin-page="console">
 <div id="notices" aria-live="polite"></div>
-<section id="login" class="login"><form id="loginForm" class="login-card"><h1>ShaderFlow 管理控制台</h1><p class="hint">登录后可验证玩家候选代码并管理现场画面。</p><input id="password" type="password" autocomplete="current-password" placeholder="管理员密码" required><button type="submit">登录</button><p id="loginError" class="bad"></p></form></section>
-<div id="app" class="hidden"><header><div><h1>ShaderFlow · 控制台</h1><span id="status" class="hint">连接中</span></div><div class="row"><a class="button" href="/admin/view/">打开全屏大屏</a><button id="logout">退出管理员</button></div></header>
+<section id="login" class="login"><form id="loginForm" class="login-card"><h1>ShaderFlow 管理控制台</h1><p class="hint">登录后自动验证玩家代码并管理现场画面。</p><input id="password" type="password" autocomplete="current-password" placeholder="管理员密码" required><button type="submit">登录</button><p id="loginError" class="bad"></p></form></section>
+<div id="app" class="hidden"><header><div><h1>ShaderFlow · 控制台</h1><span id="status" class="hint">连接中</span></div><div class="row"><a class="button" href="/admin/view/">打开大屏</a><button id="logout">退出管理员</button></div></header>
 <main><section class="panel"><div class="row"><h2>屏幕</h2><label>宽 <input id="width" type="number" min="200" max="16384"></label><label>高 <input id="height" type="number" min="200" max="16384"></label><button id="saveSettings">更新排布</button><span id="layoutInfo" class="hint"></span></div></section>
-<section class="panel"><h2>候选代码</h2><p class="hint">控制台会使用 WebGPU 编译并实际绘制候选版本；通过后才加入现场画面。</p><div id="candidates" class="candidate-list"></div></section>
+<section class="panel"><h2>自动验证</h2><p class="hint">玩家代码会在后台自动用 WebGPU 验证；成功后立即上屏，失败时只显示通知。</p></section>
 <section class="panel"><h2>在线玩家</h2><div id="players" class="player-list"></div></section>
 </main></div>
 <script type="module" src="../app.js"></script></body></html>

@@ -1,10 +1,9 @@
 import { WallRenderer } from '../shared/wall.js';
 import { $, el, api, json, announce, errorText, startSocket } from '../ui.js';
 
-const model = { state:null, renderer:null, socketStop:null, canvases:new Map(), sources:new Map(), attempts:new Map(), candidatePreviews:new Map(), drawing:false };
+const model = { state:null, renderer:null, socketStop:null, canvases:new Map(), sources:new Map(), attempts:new Map(), drawing:false };
 
 async function request(path, options={}) { return api(path, options); }
-function candidateKey(candidate) { return `${candidate.sub}:${candidate.code.version}`; }
 
 async function refresh() {
   try {
@@ -29,7 +28,7 @@ async function acceptState(state) {
   $('#width').value = state.settings.width; $('#height').value = state.settings.height;
   const layout = state.layout || {};
   $('#layoutInfo').textContent = layout.tileSize ? `${layout.columns} × ${layout.rows} · 每格 ${layout.tileSize}px · 在线 ${state.players?.length || 0}` : '暂无已确认在线玩家';
-  renderWall(); renderPlayers(); renderCandidates();
+  renderWall(); renderPlayers();
   await ensureRenderer();
   await processCandidates();
 }
@@ -61,35 +60,22 @@ function renderPlayers() {
   if (!players.length) root.append(el('p',{className:'hint',text:'等待玩家提交并通过验证的代码。'}));
   for (const player of players) root.append(el('div',{className:'player-row'},el('strong',{text:player.name}),el('span',{className:'hint',text:`v${player.code.version} · 格子 ${player.tile.column + 1}, ${player.tile.row + 1} · ${player.tile.size}px`})));
 }
-function renderCandidates() {
-  const root=$('#candidates');root.replaceChildren();
-  model.candidatePreviews.clear();
-  const candidates=model.state.candidates || [];
-  if (!candidates.length) root.append(el('p',{className:'hint',text:'没有待确认代码。'}));
-  for (const candidate of candidates) {
-    const key=candidateKey(candidate),attempt=model.attempts.get(key),preview=el('canvas',{className:'candidate-preview',width:160,height:160});
-    const status=el('span',{className:attempt?.ok?'good':attempt?.error?'bad':'hint',text:attempt?.ok?'验证完成，正在确认':attempt?.error?`验证失败：${attempt.error}`:'等待大屏验证'});
-    const retry=el('button',{type:'button',text:'重新验证',onclick:()=>{model.attempts.delete(key);renderCandidates();processCandidates();}});
-    root.append(el('article',{className:'candidate'},el('div',{className:'row'},el('strong',{text:candidate.name}),el('span',{className:'hint',text:`v${candidate.code.version}`}),status,retry),preview,el('pre',{className:'candidate-code',text:candidate.code.source})));
-    model.candidatePreviews.set(key,preview);
-  }
-}
 async function processCandidates() {
   if (!model.renderer || !model.state) return;
   for (const candidate of model.state.candidates || []) {
-    const key=candidateKey(candidate); if (model.attempts.has(key)) continue;
-    model.attempts.set(key,{pending:true}); renderCandidates();
-    const preview=model.candidatePreviews.get(key);
+    const key=`${candidate.sub}:${candidate.code.version}`; if (model.attempts.has(key)) continue;
+    model.attempts.set(key,{pending:true});
+    const preview=document.createElement('canvas');
     try {
       const id=`candidate:${candidate.sub}:${candidate.code.version}`;
       const result=await model.renderer.setShader(id,candidate.code.source);
       if (!result.ok) throw new Error(result.errors.join('\n'));
       model.renderer.setTarget(id,preview,160);model.renderer.draw(id,0);await model.renderer.device.queue.onSubmittedWorkDone();
-      model.attempts.set(key,{ok:true});renderCandidates();
+      model.attempts.set(key,{ok:true});
       await request(`/api/admin/candidates/${encodeURIComponent(candidate.sub)}/promote`,{method:'POST',body:json({version:candidate.code.version})});
       announce(`${candidate.name} 的 v${candidate.code.version} 已通过权威验证`, 'success');
       await refreshState();
-    } catch (error) { model.attempts.set(key,{error:errorText(error)});renderCandidates(); }
+    } catch (error) { model.attempts.set(key,{error:errorText(error)});announce(`${candidate.name} 的候选代码验证失败：${errorText(error)}`,'error'); }
   }
 }
 async function draw() {

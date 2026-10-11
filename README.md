@@ -55,12 +55,12 @@ docker compose up --build
 然后使用不同的普通/无痕浏览器窗口访问：
 
 - `http://admin.localhost/admin/console/`：管理控制台
-- `http://admin.localhost/admin/view/`：大屏（登录后需要点击“进入全屏大屏”）
+- `http://admin.localhost/admin/view/`：大屏（无需全屏也可显示；右上角可切换浏览器全屏）
 - `http://user1.localhost/player/`
 - `http://user2.localhost/player/`
 - `http://user9.localhost/player/`
 
-管理控制台和大屏已拆分：`/admin/` 会重定向到 `/admin/console/`；大屏位于 `/admin/view/`。浏览器不允许页面在没有用户手势时自行进入全屏，因此大屏页会遮挡画面，直到管理员点击“进入全屏大屏”。若退出浏览器全屏，遮挡层会再次出现。
+管理控制台和大屏已拆分：`/admin/` 会重定向到 `/admin/console/`；大屏位于 `/admin/view/`。大屏在普通窗口和浏览器全屏模式下都会渲染；右上角低透明度控件可切换全屏或返回控制台。
 
 开发管理员密码为 `dev-admin-change-me`，定义在 `conf/server.docker.dev.json`。Caddy 暴露宿主机的 80 端口；若该端口已被占用，请修改 compose 的端口映射，并在 URL 中加上该端口。此开发配置只信任 Docker 默认私网段 `172.16.0.0/12`，不可直接用于生产。
 
