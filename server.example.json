@@ -1,17 +1,8 @@
 {
-  "environment": "production",
-  "address": ":8443",
-  "publicUrl": "https://shaderflow.example.com:8443",
-  "adminPasswordHashRef": { "env": "SHADERFLOW_ADMIN_PASSWORD_HASH" },
-  "tlsCert": "certs/server.crt",
-  "tlsKey": "certs/server.key",
+  "address": "127.0.0.1:8080",
   "dataDir": "data",
   "staticDir": "web",
-  "enableTestPlayerLogin": false,
-  "oidc": {
-    "issuer": "https://identity.example.com/realms/shaderflow",
-    "clientId": "shaderflow",
-    "clientSecretRef": { "file": "secrets/oidc-client-secret" },
-    "redirectUrl": "https://shaderflow.example.com:8443/auth/callback"
-  }
+  "adminPassword": "replace-with-a-long-secret",
+  "trustedProxyCIDRs": ["127.0.0.0/8"],
+  "cookieSecure": true
 }

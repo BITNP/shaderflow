@@ -1,31 +1,83 @@
 # ShaderFlow
 
-多人 WebGPU shader 活动软件：Go 后端、管理员/大屏端与玩家端。
+ShaderFlow 是一个多人 **WebGPU Shader Wall**：每位已认证的玩家提交一个受锁定模板约束的 WGSL 函数；管理大屏验证后，将玩家的动画绘制到现场画面的一个正方形格子中。
 
-## 本地运行
+## 工作方式
 
-```powershell
+1. 玩家通过部署在 ShaderFlow 前面的 **oauth2-proxy** 完成登录。
+2. 玩家只能编辑两个颜色常量和 `userfn(x, y, t)`；浏览器在本地用完整锁定 WGSL 模板编译并绘制。
+3. 玩家提交的是候选版本。候选版本不会直接成为现场代码，即使有人绕过浏览器校验直接请求 API 也是如此。
+4. 管理大屏再次用 WebGPU 编译并实际绘制候选版本；通过后以管理员 Cookie 调用确认接口，服务端才将其提升为已接受版本。
+5. 已接受且在线的玩家占用一个正方形。布局保留空格优先填入；满格时重新排布；玩家离开后空位超过容量四分之一时重新排布。
+
+玩家页面与管理页面分别位于 `/player/` 和 `/admin/`。
+
+## 配置与启动
+
+在 JSON 配置中设置管理员密码，例如：
+
+```json
+{
+  "adminPassword": "replace-with-a-long-secret"
+}
+```
+
+使用 `server.dev.example.json` 启动：
+
+```sh
 go run ./cmd/shaderflow -config server.dev.example.json
 ```
 
-默认监听 `127.0.0.1:8080`，静态资源来自 `web/`。管理员登录入口为 `/admin/`，玩家入口为 `/player/`。
+`adminPassword` 直接从 JSON 配置读取。管理员通过 `/admin/` 输入该密码，服务端使用 HttpOnly、SameSite=Strict Cookie 保存管理员会话。请限制生产配置文件的读取权限，并且不要将真实密码提交到版本库。
 
-生产配置示例见 `server.example.json`，本机开发示例见 `server.dev.example.json`。局域网部署必须配置 HTTPS/WSS 证书；仅本机 `localhost` 开发可使用 HTTP。生产部署前运行 `go run ./cmd/shaderflow -config server.example.json -preflight`，确认静态资源、TLS keypair、证书 hostname 和 Archive 存储全部通过。OIDC 未配置时，本机开发配置会显式启用 `enableTestPlayerLogin`，玩家页会出现“测试玩家登录”按钮；生产配置默认关闭此入口。
+## oauth2-proxy
 
-本机快速启动：
+应用不处理 OIDC 协议。请把 oauth2-proxy 作为唯一公网入口，并让它把认证用户透传到上游：
 
-```powershell
-go run ./cmd/shaderflow -config server.dev.example.json
+```text
+--pass-user-headers=true
 ```
 
-## Post-MVP 状态
+ShaderFlow 从 oauth2-proxy 请求头 `X-Forwarded-User` 获取玩家身份。常见的反向代理配置还会使用 oauth2-proxy 的 `--set-xauthrequest`，但本应用读取的是传给上游的 `X-Forwarded-User`，不是浏览器可伪造的请求头。
 
-自动化实现状态与剩余人工验收见 `docs/post-mvp-implementation-status.md`。生产部署见 `docs/windows-deployment.md`，GPU 与浏览器验收见 `docs/gpu-benchmark.md` 和 `docs/browser-qualification.md`。
+**必须**将 `trustedProxyCIDRs` 设置为 oauth2-proxy 到 ShaderFlow 的实际源地址范围，并让 ShaderFlow 只监听私网或回环地址。服务端仅在远端地址落入该列表时才信任 `X-Forwarded-User`；不要将应用端口直接暴露到公网。
 
-## 首版边界
+生产时由反向代理终止 HTTPS，请将 `cookieSecure` 设为 `true`。浏览器的 WebGPU 和 WebSocket 均应通过 HTTPS/WSS 访问代理。
 
-- 大屏是完整 DAG 的权威渲染端；玩家端仅运行自己的节点调试图。
-- WebGPU 要求浏览器通过实际 storage-texture pipeline probe；`readonly_and_readwrite_storage_textures` feature 名称是可选报告项，不作为唯一拒绝依据。管理员诊断页与基准导出记录设备能力。
-- shader 编译和一帧验证在浏览器完成；服务端校验身份、活动状态、代码长度、版本和协议，不运行 WGSL。
-- 默认代码上传以客户端版本号为准；服务端同时记录接收时间和玩家节点。
-- PNG/JPEG 导出首版支持；EXR 留作后续扩展。
+### 多用户本机开发（Caddy）
+
+仓库包含 `docker-compose.yml`、`conf/Caddyfile`、`conf/server.docker.dev.json` 以及运行数据目录 `data/`，用于模拟两个 oauth2-proxy 已认证用户。`conf/` 以只读 bind mount 提供给应用和 Caddy，`data/` 以可写 bind mount 持久化管理员 Session。Caddy 将 `user1.localhost` 和 `user2.localhost` 的请求分别代理到同一个应用容器，并添加不同的 `X-Forwarded-User` 请求头。
+
+```sh
+docker compose up --build
+```
+
+然后使用不同的普通/无痕浏览器窗口访问：
+
+- `http://user1.localhost/player/`
+- `http://user2.localhost/player/`
+- `http://user1.localhost/admin/`（或任一上述域名的 `/admin/`）
+
+开发管理员密码为 `dev-admin-change-me`，定义在 `conf/server.docker.dev.json`。Caddy 暴露宿主机的 80 端口；若该端口已被占用，请修改 compose 的端口映射，并在 URL 中加上该端口。此开发配置只信任 Docker 默认私网段 `172.16.0.0/12`，不可直接用于生产。
+
+
+## API 概览
+
+- `GET /api/auth/me`：管理员 Cookie 或可信代理用户身份。
+- `GET /api/state`：管理员得到全部玩家和候选版本；玩家只得到自己的版本和格子。
+- `POST /api/candidate`：玩家上传 `{version, source}` 候选版本。
+- `POST /api/admin/candidates/{sub}/promote`：管理大屏验证成功后确认指定版本。
+- `PUT /api/admin/settings`：更新 `{width,height,maxCodeBytes}`，并重新计算格子布局。
+- `GET /api/ws`：状态同步及在线检测。玩家断开 WebSocket 后有 30 秒宽限期。
+
+## 架构
+
+```text
+oauth2-proxy -- X-Forwarded-User --> Go 服务
+                                      ├─ internal/server: 管理员会话、可信代理认证、API/WS
+                                      └─ internal/game: 候选→确认状态机、在线状态、正方形排布
+浏览器
+├─ web/player: 固定 WGSL 模板的本地验证和候选提交
+├─ web/admin: 权威验证、确认候选、各格子 WebGPU 绘制
+└─ web/shared/wall.js: 固定 wrapper、可编辑区解析、WebGPU render pipeline
+```

@@ -1,0 +1,11 @@
+.git
+.gitignore
+.scratch
+conf/
+.vscode
+.idea
+data/
+data-*/
+*.log
+*.tmp
+.env

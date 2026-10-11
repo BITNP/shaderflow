@@ -1,1 +1,0 @@
-{"private":true,"type":"module","scripts":{"test":"node --check ../ui.js && node --check ../admin/app.js && node --check ../player/app.js && node --check ../shared/gpu.js && node --check index.js && node --test *.test.mjs"}}

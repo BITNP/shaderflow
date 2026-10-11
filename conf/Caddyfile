@@ -1,0 +1,16 @@
+{
+  admin off
+  auto_https off
+}
+
+http://user1.localhost {
+  reverse_proxy app:8080 {
+    header_up X-Forwarded-User user1
+  }
+}
+
+http://user2.localhost {
+  reverse_proxy app:8080 {
+    header_up X-Forwarded-User user2
+  }
+}

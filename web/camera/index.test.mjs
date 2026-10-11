@@ -1,7 +1,0 @@
-import test from 'node:test';
-import assert from 'node:assert/strict';
-import {createCameraController,computeCameraMetadata,compileCameraScript,rotationMatrix} from './index.js';
-test('camera identity and FOV are interpreted in degrees',()=>{const v=computeCameraMetadata({width:960,height:540,fov:60});assert.deepEqual(v.rot,[1,0,0,0,1,0,0,0,1]);assert.ok(Math.abs(v.depth-540/(2*Math.tan(Math.PI/6)))<1e-8);const rightAngle=computeCameraMetadata({width:800,height:600,fov:90});assert.ok(Math.abs(rightAngle.depth-300)<1e-8);});
-test('script uses arrays, arithmetic, ternary, switch and reset',()=>{const c=createCameraController({initSource:'var counter = 2; var offsets=[1,3];',frameSource:'counter++; pos[0]=counter + offsets[1]; if (time > 1) { euler[0] = PI / 2; } fov = time > 1 ? 90 : 45; switch(counter){ case 3: pos[1]=7; break; default: pos[1]=8; }'});assert.deepEqual(c.evaluate(0).pos,[6,7,0]);assert.deepEqual(c.evaluate(2).pos,[7,8,0]);c.reset();assert.deepEqual(c.evaluate(0).pos,[6,7,0]);});
-test('disallows object access and constructor execution',()=>{assert.equal(compileCameraScript('window.alert(1)').ok,false);const c=createCameraController({frameSource:'window.alert(1)'});assert.deepEqual(c.evaluate(0).pos,[0,0,0]);assert.equal(compileCameraScript('var x = [1].constructor').ok,false);});
-test('rotation yaw quarter turn in degrees',()=>{const r=rotationMatrix([90,0,0]);assert.ok(Math.abs(r[6]-1)<1e-10);});

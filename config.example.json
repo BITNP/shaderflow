@@ -1,18 +1,8 @@
 {
-  "environment": "development",
   "address": "127.0.0.1:8080",
-  "publicUrl": "http://127.0.0.1:8080",
-  "dataDir": "data",
+  "dataDir": "data-dev",
   "staticDir": "web",
-  "enableTestPlayerLogin": true,
-  "adminPassword": "change-me",
-  "adminPasswordHash": "",
-  "tlsCert": "",
-  "tlsKey": "",
-  "oidc": {
-    "issuer": "",
-    "clientId": "",
-    "clientSecret": "",
-    "redirectUrl": "http://localhost:8080/auth/callback"
-  }
+  "adminPassword": "dev-admin-change-me",
+  "trustedProxyCIDRs": ["127.0.0.0/8", "::1/128"],
+  "cookieSecure": false
 }
